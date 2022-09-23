@@ -64,7 +64,7 @@ def cancel_observations(config, obs_set):
             'include_direct': True
             }
         print(payload)
-        opt = input('CANCEL observation ? '+str(obs['request']['id'])+' '+str(obs['proposal'])
+        opt = input('CANCEL observation ? '+str(obs['id'])+' '+str(obs['proposal'])
                 +' '+str(obs['start'])+' '+str(obs['end'])+' '+str(obs['state'])
                 +' ? Press y to confirm or any other key to skip: ')
         if opt == 'y':
