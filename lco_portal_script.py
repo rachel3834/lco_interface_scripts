@@ -63,14 +63,22 @@ def cancel_observations(config, obs_set):
             'include_rr': False,
             'include_direct': True
             }
-        print(payload)
-        opt = input('CANCEL observation ? '+str(obs['id'])+' '+str(obs['proposal'])
+        opt = input('CANCEL observation ? '
+                +'Obs_id='+str(obs['id'])+' Req_grp_id='+str(obs['request_group_id'])
+                +' ID='+str(obs['request']['id'])+' '+str(obs['proposal'])
                 +' '+str(obs['start'])+' '+str(obs['end'])+' '+str(obs['state'])
                 +' ? Press y to confirm or any other key to skip: ')
         if opt == 'y':
+            print('Proceeding with cancellation')
+
+            # Cancel the observation from the observations database
             response = lco_interface(config, payload, 'api/observations/cancel', 'POST')
             print(response)
-            print('Proceeding with cancellation')
+
+            # Cancel the request group from the observe portal
+            response2 = lco_cancel_request(config, obs['request_group_id'])
+            print(response2)
+
         else:
             print('OK, not cancelling')
 
@@ -104,6 +112,26 @@ def lco_interface(config,ur,end_point,method):
     elif method == 'GET':
         response = requests.get(url, headers=headers, params=ur)
 
+    json_response = response.json()
+
+    return json_response
+
+def lco_cancel_request(config, request_id):
+    """Function to cancel an observation request from the LCO observe portal.
+    Note this is a distinct database and API from the api/observations"""
+
+    end_point = '/api/requestgroups/'
+    method = 'POST'
+
+    headers = {'Authorization': 'Token ' + config['lco_token']}
+
+    if end_point[0:1] == '/':
+        end_point = end_point[1:]
+    if end_point[-1:] != '/':
+        end_point = end_point+'/'
+    url = path.join(config['lco_base_url'], end_point) + str(request_id) + '/cancel/'
+
+    response = requests.post(url, headers=headers)
     json_response = response.json()
 
     return json_response
