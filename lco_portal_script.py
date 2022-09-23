@@ -35,7 +35,7 @@ def run():
              'limit': 10000 # Otherwise the results are paginated into sets of 10
              }
 
-    obs_set = query_for_observations(config, params, verbose=False)
+    obs_set = query_for_observations(config, params, verbose=True)
 
     cancel_observations(config, obs_set)
 
@@ -62,10 +62,12 @@ def query_for_observations(config, params, verbose=True):
         query_set = []
 
     if verbose:
-        print('Query returned '+str(len(query_set))
-                +' results; filtering by proposal')
+        print('Query returned '+str(len(query_set))' results')
+        for obs in query_set:
+            print(obs['id'], obs['proposal'], obs['start'], obs['end'], obs['state'])
 
     # Now apply the other selection criteria:
+    print('Filtering query set by proposal code')
     observation_set = []
     for obs in query_set:
         if obs['proposal'] == params['proposal']:
@@ -75,7 +77,7 @@ def query_for_observations(config, params, verbose=True):
             + ' observations matching all search parameters:')
     for obs in observation_set:
         if obs['proposal'] == PROPOSAL:
-            print(obs['request']['id'], obs['proposal'], obs['start'], obs['end'], obs['state'])
+            print(obs['id'], obs['proposal'], obs['start'], obs['end'], obs['state'])
 
     return observation_set
 
