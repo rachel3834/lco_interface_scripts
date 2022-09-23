@@ -2,38 +2,10 @@ import requests
 from os import path
 from datetime import datetime
 
-API_TOKEN = 'MY_TOKEN_HERE'
-PORTAL_HOST = 'https://observe.lco.global/'
-PROPOSAL = None
-PROPOSAL = 'MY_PROPOSAL_CODE_HERE'
-SITE = 'elp'
-ENCLOSURE = None
-TELESCOPE = None
-PRIORITY = None
+# UNCOMMENT ME!  When you have set up your local copy of default_config.py
+from local_config import config, params
 
 def run():
-
-    config = {
-              'lco_token': API_TOKEN,
-              'lco_base_url': PORTAL_HOST
-              }
-
-    start_time = '2022-09-26 00:00'
-    end_time = '2022-09-29 23:59'
-
-    # Observations can be in one of these states:
-    # {COMPLETED, PENDING, IN_PROGRESS, ABORTED, FAILED, NOT_ATTEMPTED}
-    params = {
-             'site': SITE,      # This parameter is apparently required
-             'enclosure': ENCLOSURE,
-             'telescope': TELESCOPE,
-             'priority': PRIORITY,
-             'proposal': PROPOSAL,
-             'state': 'PENDING',
-             'start_after': datetime.strptime(start_time, "%Y-%m-%d %H:%M"),
-             'start_before': datetime.strptime(end_time, "%Y-%m-%d %H:%M"),
-             'limit': 10000 # Otherwise the results are paginated into sets of 10
-             }
 
     obs_set = query_for_observations(config, params, verbose=True)
 
@@ -54,15 +26,12 @@ def query_for_observations(config, params, verbose=True):
     if verbose:
         print('Submitting query: '+repr(query))
 
-    response = lco_interface(config, query, 'api/observations', 'GET')
-
-    if 'results' in response.keys():
-        query_set = response['results']
-    else:
-        query_set = []
+    # The results are paginated, and attempts to override this using the limit
+    # parameter were not successful.  So we need to loop through the pages
+    query_set = lco_interface_paginated_get(config,query)
 
     if verbose:
-        print('Query returned '+str(len(query_set))' results')
+        print('Query returned '+str(len(query_set))+' results')
         for obs in query_set:
             print(obs['id'], obs['proposal'], obs['start'], obs['end'], obs['state'])
 
@@ -76,8 +45,7 @@ def query_for_observations(config, params, verbose=True):
     print('Retrieved '+str(len(observation_set))
             + ' observations matching all search parameters:')
     for obs in observation_set:
-        if obs['proposal'] == PROPOSAL:
-            print(obs['id'], obs['proposal'], obs['start'], obs['end'], obs['state'])
+        print(obs['id'], obs['proposal'], obs['start'], obs['end'], obs['state'])
 
     return observation_set
 
@@ -91,9 +59,9 @@ def cancel_observations(config, obs_set):
             # These specify which observation types to include in the set to be
             # canceled. This will protect you from accidentally cancelling an
             # observation that was placed by the scheduler
-            'include_normal': True,
+            'include_normal': False,
             'include_rr': False,
-            'include_direct': False
+            'include_direct': True
             }
         print(payload)
         opt = input('CANCEL observation ? '+str(obs['request']['id'])+' '+str(obs['proposal'])
@@ -127,7 +95,6 @@ def lco_interface(config,ur,end_point,method):
     if end_point[-1:] != '/':
         end_point = end_point+'/'
     url = path.join(config['lco_base_url'],end_point)
-    print(url)
 
     if method == 'POST':
         if ur != None:
@@ -136,10 +103,50 @@ def lco_interface(config,ur,end_point,method):
             response = requests.post(url, headers=headers)
     elif method == 'GET':
         response = requests.get(url, headers=headers, params=ur)
-    print(response)
 
     json_response = response.json()
+
     return json_response
+
+def lco_interface_paginated_get(config,ur):
+    """Function to communicate with various APIs of the LCO network.
+    ur should be a user request while end_point is the URL string which
+    should be concatenated to the observe portal path to complete the URL.
+    Accepted end_points are:
+        "api/observations"
+    Accepted methods are:
+        GET
+    """
+    end_point = 'api/observations'
+    method = 'GET'
+
+    headers = {'Authorization': 'Token ' + config['lco_token']}
+
+    if end_point[0:1] == '/':
+        end_point = end_point[1:]
+    if end_point[-1:] != '/':
+        end_point = end_point+'/'
+    url = path.join(config['lco_base_url'],end_point)
+    print(url)
+
+    response = requests.get(url, headers=headers, params=ur)
+    json_response = response.json()
+    results = json_response['results']
+    print('Initial number of search matches: '+str(json_response['count']))
+    print('Looping over paginated results...')
+
+    while 'next' in json_response.keys() and json_response['next']:
+        url = json_response['next']
+        #print('Fetching page '+url)
+        response = requests.get(url, headers=headers, params=ur)
+        json_response = response.json()
+
+        if 'results' in json_response.keys():
+            for entry in json_response['results']:
+                results.append(entry)
+        #print(len(results))
+
+    return results
 
 
 if __name__ == '__main__':
